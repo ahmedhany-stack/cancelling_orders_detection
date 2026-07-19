@@ -1,0 +1,40 @@
+project:
+  name: Online Retail Prediction
+
+data:
+  train_file: data/raw/online_retail_II.xlsx
+  target: Cancelled
+  test_size: 0.2
+  random_state: 42
+
+features:
+  drop_columns:
+    - Invoice
+    - Description
+    - Quantity
+    - InvoiceDate
+    - Customer ID
+
+  scale_numeric: true
+  encode_categorical: true
+
+model:
+  name: XGBClassifier
+
+  params:
+    n_estimators: 300
+    learning_rate: 0.03
+    max_depth: 7
+    min_child_weight: 2
+    subsample: 0.85
+    colsample_bytree: 0.85
+    gamma: 0.15
+    reg_alpha: 0.2
+    reg_lambda: 2
+
+training:
+  cv_folds: 5
+  scoring: f1
+
+save:
+  model_path: models/model.pkl

@@ -1,0 +1,25 @@
+# تجاهل البيئات الافتراضية تماماً لأن دوكر يبني بيئته المستقلة
+.venv/
+venv/
+env/
+ENV/
+
+# تجاهل ملفات كاش بايثون
+**/__pycache__/
+**/*.pyc
+**/*.pyo
+**/*.pyd
+.pytest_cache/
+.ipynb_checkpoints/
+
+# تجاهل ملفات النظام وبيئات التطوير والملفات السرية
+.DS_Store
+.vscode/
+.idea/
+.env
+.git/
+.gitignore
+
+# تجاهل كاش تجارب MLflow المحلية
+mlruns/
+mlflow.db

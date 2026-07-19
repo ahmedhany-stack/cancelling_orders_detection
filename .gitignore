@@ -1,0 +1,55 @@
+# ==========================================
+# Python & Editors Cache
+# ==========================================
+__pycache__/
+*.py[cod]
+*$py.class
+.vscode/
+.idea/
+.ipynb_checkpoints/
+.cache/
+.pytest_cache/
+
+# ==========================================
+# Virtual Environment
+# ==========================================
+venv/
+.venv/
+env/
+ENV/
+
+# ==========================================
+# Environment Variables & Logs
+# ==========================================
+.env
+logs/
+*.log
+mlruns/
+mlflow.db
+
+# ==========================================
+# Build Management
+# ==========================================
+*.egg-info/
+src.egg-info/
+build/
+dist/
+
+# ==========================================
+# Data & Artifacts Management
+# ==========================================
+# تجاهل مجلدات وملفات البيانات الضخمة نهائياً لمنع مشاكل الـ Push
+data/
+artifacts/features/
+*.csv
+*.xlsx
+*.json
+
+# السماح برفع مجلدات النماذج والـ preprocessors الجاهزة فقط
+!artifacts/
+!artifacts/models/
+!artifacts/preprocessors/
+!saved_models/
+!saved_preprocessors/
+!*.pkl
+!*.joblib

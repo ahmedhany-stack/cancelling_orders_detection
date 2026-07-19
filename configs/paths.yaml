@@ -1,0 +1,37 @@
+project:
+  root: .
+
+data:
+  raw: data/raw/online_retail_II.xlsx
+  processed_dir: data/processed
+  external_dir: data/external
+
+artifacts:
+  root: artifacts
+
+  artifacts:
+
+  raw_data: artifacts/raw_data.csv
+
+  clean_data: artifacts/clean_data.csv
+
+  feature_data: artifacts/features/engineered_data.csv
+
+  train_data: artifacts/train.csv
+  test_data: artifacts/test.csv
+
+  transformed_train: artifacts/train_processed.csv
+  transformed_test: artifacts/test_processed.csv
+
+  models_dir: artifacts/models
+  metrics_dir: artifacts/metrics
+  plots_dir: artifacts/plots
+  logs_dir: artifacts/logs
+
+models:
+  trained_model: artifacts/models/model.pkl
+  preprocessor: artifacts/models/preprocessor.pkl
+
+reports:
+  figures_dir: reports/figures
+  reports_dir: reports/reports

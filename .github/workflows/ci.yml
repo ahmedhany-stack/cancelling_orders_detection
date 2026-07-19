@@ -1,0 +1,46 @@
+name: Build and Push Docker Image
+
+# هنا الـ Trigger يدوي فقط عن طريق زرار في GitHub
+on:
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: 'Docker Image Tag (e.g., v1, v1.1, latest)'
+        required: true
+        default: 'v1'
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+
+    steps:
+    # 1. سحب الكود من المستودع
+    - name: Checkout Code
+      uses: actions/checkout@v4
+
+    # 2. إعداد الـ Docker Buildx (لتحسين سرعة البناء والكاشينج)
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    # 3. تسجيل الدخول إلى Docker Hub بأمان باستخدام الـ Secrets
+    - name: Log in to Docker Hub
+      uses: docker/login-action@v3
+      with:
+        username: ${{ secrets.DOCKER_USERNAME }}
+        password: ${{ secrets.DOCKER_PASSWORD }}
+
+    # 4. بناء الـ Image ورفعها تلقائياً مع تمرير بيانات MLflow للـ Docker بأمان
+    - name: Build and Push Docker Image
+      uses: docker/build-push-action@v6
+      with:
+        context: .
+        file: ./Dockerfile
+        push: true
+        tags: |
+          ${{ secrets.DOCKER_USERNAME }}/churn-prediction:${{ github.event.inputs.image_tag }}
+          ${{ secrets.DOCKER_USERNAME }}/churn-prediction:latest
+        build-args: |
+          MLFLOW_TRACKING_USERNAME=${{ secrets.MLFLOW_TRACKING_USERNAME }}
+          MLFLOW_TRACKING_PASSWORD=${{ secrets.MLFLOW_TRACKING_PASSWORD }}
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
