@@ -19,6 +19,8 @@ from sklearn.metrics import (
 
 # استيراد mlflow
 import mlflow
+import mlflow.sklearn
+import mlflow.xgboost
 
 from src.config.configuration import PATHS
 from src.exception.exception import CustomException
@@ -150,6 +152,10 @@ class ModelEvaluation:
             logger.info("=" * 70)
             logger.info("Starting Model Evaluation with MLflow Tracking")
 
+            # كتم وتحييد التحذيرات التلقائية لـ MLflow
+            mlflow.sklearn.autolog(disable=True)
+            mlflow.xgboost.autolog(disable=True)
+
             # بدء Run جديدة مخصصة لعملية التقييم
             with mlflow.start_run(run_name="model_evaluation_run"):
                 df = load_csv(self.data_path)
@@ -169,7 +175,7 @@ class ModelEvaluation:
                 with open(self.metrics_path, "w") as file:
                     json.dump(metrics, file, indent=4)
 
-                # تسجيل ملف التقرير الكامل (يحتوي على الـ Confusion Matrix والتقرير التفصيلي)
+                # تسجيل ملف التقرير الكامل
                 mlflow.log_artifact(str(self.metrics_path), artifact_path="evaluation")
 
                 logger.info(f"Evaluation Report Saved : {self.metrics_path}")

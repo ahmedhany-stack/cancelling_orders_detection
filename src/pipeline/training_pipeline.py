@@ -1,22 +1,27 @@
 import sys
+import dagshub
+import mlflow
 from src.exception.exception import CustomException
 from src.logger.logger import logger
 
-# استيراد المكونات التي قمت بإنشائها
+# استيراد المكونات
 from src.components.feature_engineering import FeatureEngineering
 from src.components.model_trainer import ModelTrainer
 from src.components.model_evaluation import ModelEvaluation
 from src.components.model_pusher import ModelPusher
+from monitor import run_monitoring  # استيراد سكريبت المراقبة
 
+# إعداد DagsHub و MLflow
+dagshub.init(repo_owner='ahmedhany-stack', repo_name='cancelling_orders_detection', mlflow=True)
+mlflow.autolog()
 
 class TrainingPipeline:
     """
     Training Pipeline Coordinator
-    يقوم بإدارة وتشغيل مراحل التدريب بالكامل بالتوالي
+    تدير مراحل التدريب بالكامل مع المراقبة التلقائية
     """
     
     def __init__(self):
-        # تعريف كائنات المراحل المختلفة
         self.feature_engineering = FeatureEngineering()
         self.model_trainer = ModelTrainer()
         self.model_evaluation = ModelEvaluation()
@@ -28,48 +33,39 @@ class TrainingPipeline:
             logger.info(">>> STARTING FULL TRAINING PIPELINE <<<")
             logger.info("=" * 80)
 
-            # ------------------------------------------------------
-            # 1. Feature Engineering Phase
-            # ------------------------------------------------------
+            # 1. Feature Engineering
             logger.info("Executing Phase 1: Feature Engineering")
-            # يقوم بقراءة البيانات الخام وتحويلها وحفظها في المسار المحدد (feature_data)
             self.feature_engineering.initiate_feature_engineering()
-            logger.info("Phase 1: Feature Engineering Completed Successfully.\n")
-
-            # ------------------------------------------------------
-            # 2. Model Training Phase
-            # ------------------------------------------------------
+            
+            # 2. Model Training
             logger.info("Executing Phase 2: Model Training")
-            # يقوم بقراءة الـ feature_data، تصفية المتشابهات، تطبيق SMOTE، وتدريب النموذج وحفظ الـ Artifacts
             self.model_trainer.initiate_model_training()
-            logger.info("Phase 2: Model Training Completed Successfully.\n")
-
-            # ------------------------------------------------------
-            # 3. Model Evaluation Phase
-            # ------------------------------------------------------
+            
+            # 3. Model Evaluation
             logger.info("Executing Phase 3: Model Evaluation")
-            # يقوم بتقييم النموذج وحساب مقاييس الأداء وحفظ تقرير التقييم وأهمية الميزات
             self.model_evaluation.initiate_model_evaluation()
-            logger.info("Phase 3: Model Evaluation Completed Successfully.\n")
-
-            # ------------------------------------------------------
-            # 4. Model Pusher Phase
-            # ------------------------------------------------------
+            
+            # 4. Model Pusher
             logger.info("Executing Phase 4: Model Pusher")
-            # ينقل النموذج والـ Preprocessor الجاهزين إلى مجلد الإنتاج النهائي
             pusher_artifacts = self.model_pusher.initiate_model_pusher()
-            logger.info(f"Phase 4: Model Pusher Completed. Model deployed to: {pusher_artifacts['production_model_path']}\n")
+            
+            # 5. Automated Monitoring (إضافة احترافية)
+            logger.info("Executing Phase 5: Automated Data Monitoring")
+            run_monitoring() # هذا السكريبت سيقوم بالتحليل ويرسل تنبيه Slack إذا وجد Drift
+            
+            # ربط التقرير بـ MLflow ليظهر في الـ Dashboard
+            with mlflow.start_run(nested=True):
+                mlflow.log_artifact("reports/drift_report.html")
+                logger.info("Monitoring report logged to MLflow successfully.")
 
             logger.info("=" * 80)
             logger.info(">>> FULL TRAINING PIPELINE COMPLETED SUCCESSFULLY <<<")
             logger.info("=" * 80)
 
         except Exception as e:
-            logger.exception("Training Pipeline Failed in one of the phases!")
+            logger.exception("Training Pipeline Failed!")
             raise CustomException(e, sys)
 
-
 if __name__ == "__main__":
-    # لتشغيل الـ Pipeline بالكامل من سطر الأوامر
     pipeline = TrainingPipeline()
     pipeline.run_pipeline()

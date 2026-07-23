@@ -31,6 +31,7 @@ from sklearn.metrics import (
 # استيراد mlflow
 import mlflow
 import mlflow.xgboost
+import mlflow.sklearn
 
 from src.config.configuration import PATHS
 from src.exception.exception import CustomException
@@ -61,7 +62,6 @@ class ModelTrainer:
         )
         
         # توجيه الـ MLflow إلى سيرفر DagsHub السحابي بدلاً من المجلد المحلي
-        # استبدل الرابط التالي بالرابط الذي نسخته من زر الـ Experiments الأخضر
         mlflow.set_tracking_uri("https://dagshub.com/ahmedhany-stack/cancelling_orders_detection.mlflow")
         
         # إعداد اسم التجربة في MLflow
@@ -134,7 +134,7 @@ class ModelTrainer:
             # تحويل العينة فقط
             X_similarity = preprocessor_similarity.fit_transform(X_majority_sample)
 
-            # استخدام Nearest Neighbors مع تحديد خوارزمية أسرع إذا كان ذلك ممكناً
+            # استخدام NearestNeighbors
             nn = NearestNeighbors(
                 n_neighbors=2,
                 metric="cosine",
@@ -272,8 +272,9 @@ class ModelTrainer:
             logger.info("=" * 70)
             logger.info("Starting Model Training Pipeline with MLflow Tracking")
 
-            # تفعيل التسجيل التلقائي لـ XGBoost في MLflow
-            mlflow.xgboost.autolog()
+            # كتم وتحييد التحذيرات التلقائية المزعجة لـ MLflow
+            mlflow.sklearn.autolog(disable=True)
+            mlflow.xgboost.autolog(disable=True)
 
             with mlflow.start_run(run_name="xgboost_optimized_run"):
                 df = load_csv(self.data_path)
@@ -290,7 +291,7 @@ class ModelTrainer:
                     preprocessor
                 ) = self.prepare_data(df)
 
-                # تدريب النموذج (الـ Autolog هيسجل الـ Hyperparameters هنا)
+                # تدريب النموذج
                 model = self.train_model(X_train, y_train)
 
                 threshold, probabilities = self.find_best_threshold(
@@ -300,10 +301,10 @@ class ModelTrainer:
                 # حساب المقاييس النهائية بناءً على الـ Optimized Threshold
                 metrics = self.evaluate(y_test, probabilities, threshold)
 
-                # تسجيل المقاييس المخصصة يدوياً داخل MLflow
+                # تسجيل المقاييس يدوياً دون أي تحذيرات
                 mlflow.log_metrics(metrics)
 
-                # إنشاء المجلدات وحفظ الملفات محلياً كالمعتاد
+                # إنشاء المجلدات وحفظ الملفات محلياً
                 self.model_path.parent.mkdir(parents=True, exist_ok=True)
                 self.preprocessor_path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -313,11 +314,11 @@ class ModelTrainer:
                 with open(self.metrics_path, "w") as file:
                     json.dump(metrics, file, indent=4)
 
-                # تسجيل الـ Preprocessor والـ Metrics كـ Artifacts في MLflow
+                # تسجيل الملفات كـ Artifacts
                 mlflow.log_artifact(str(self.preprocessor_path), artifact_path="preprocessor")
                 mlflow.log_artifact(str(self.metrics_path), artifact_path="metrics")
                 
-                # تسجيل الموديل ليكون متاحاً في الـ Model Registry السحابي
+                # تسجيل الموديل في Model Registry السحابي بوضوح
                 mlflow.xgboost.log_model(model, artifact_path="model", registered_model_name="XGBoost_Churn_Model")
 
                 logger.info(f"Model Saved Locally : {self.model_path}")
