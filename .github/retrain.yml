@@ -1,0 +1,59 @@
+name: Automated Model Retraining Pipeline
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 0 * * 0'
+
+# إعطاء صلاحيات للـ CML لكتابة التعليقات على الـ Commits
+permissions:
+  contents: write
+  pull-requests: write
+  statuses: write
+
+jobs:
+  retrain-model:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      - name: Set up Python 3.10
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install cml
+
+      - name: Pull Latest Data via DVC
+        env:
+          GDRIVE_CREDENTIALS_DATA: ${{ secrets.GDRIVE_CREDENTIALS_DATA }}
+        run: |
+          dvc pull || echo "DVC pull skipped if no remote set"
+
+      - name: Execute Model Retraining & Evaluation
+        env:
+          MLFLOW_TRACKING_URI: https://dagshub.com/ahmedhany-stack/cancelling_orders_detection.mlflow
+          MLFLOW_TRACKING_USERNAME: ${{ secrets.DAGSHUB_USERNAME }}
+          MLFLOW_TRACKING_PASSWORD: ${{ secrets.DAGSHUB_TOKEN }}
+        run: |
+          # تشغيل سكريبت إعادة التدريب والمقارنة بالكامل
+          python src/components/model_trainer.py
+
+      - name: Publish CML Report to GitHub PR/Commit
+        env:
+          REPO_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "## 🤖 Automated Model Retraining Results" > report.md
+          echo "### Latest Evaluated Metrics" >> report.md
+          echo '```json' >> report.md
+          cat artifacts/models/metrics.json >> report.md
+          echo '```' >> report.md
+          
+          # نشر التقرير كتعليق على الـ Commit
+          cml comment create report.md

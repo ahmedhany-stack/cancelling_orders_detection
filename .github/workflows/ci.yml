@@ -32,12 +32,13 @@ jobs:
           python -m pip install --upgrade pip
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
 
-      # 3. تشغيل الـ Unit Tests (لو عندك مجلد tests)
+# 3. تشغيل الـ Unit Tests بـ Pytest
       - name: Run Tests with Pytest
+        env:
+          PYTHONPATH: .
         run: |
-          echo "Running tests..."
-          # pytest tests/ || echo "No tests folder found, skipping..."
-
+          echo "Running pytest on tests/ folder..."
+          pytest tests/ -v
       # 4. إعداد الـ Docker Buildx (لتحسين سرعة البناء والكاشينج)
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3

@@ -1,0 +1,21 @@
+version: '3.8'
+
+services:
+  # 1. خدمة الـ API بتاعك
+  web_api:
+    build: .                         # اعمل Build للـ Dockerfile اللي في الفولدر الحالي
+    container_name: sales_api_app    # اسم الكونتينر
+    ports:
+      - "8000:8000"                  # ربط البورت (المحلي : اللي جوه Docker)
+    environment:
+      - MLFLOW_TRACKING_URI=http://mlflow_server:5000
+    depends_on:
+      - mlflow_server                # ما تشغلش الـ API إلا لما MLflow يقوم الأول
+
+  # 2. خدمة سيرفر MLflow
+  mlflow_server:
+    image: ghcr.io/mlflow/mlflow:v2.10.2    # بياخد صورة MLflow الجاهزة من Docker Hub
+    container_name: mlflow_tracker
+    ports:
+      - "5000:5000"                  # بورت واجهة MLflow
+    command: mlflow server --host 0.0.0.0 --port 5000

@@ -32,6 +32,7 @@ from sklearn.metrics import (
 import mlflow
 import mlflow.xgboost
 import mlflow.sklearn
+from mlflow.tracking import MlflowClient
 
 from src.config.configuration import PATHS
 from src.exception.exception import CustomException
@@ -61,145 +62,167 @@ class ModelTrainer:
             "artifacts/models/metrics.json"
         )
         
-        # توجيه الـ MLflow إلى سيرفر DagsHub السحابي بدلاً من المجلد المحلي
+        # توجيه الـ MLflow إلى سيرفر DagsHub السحابي
         mlflow.set_tracking_uri("https://dagshub.com/ahmedhany-stack/cancelling_orders_detection.mlflow")
         
-        # إعداد اسم التجربة في MLflow
-        mlflow.set_experiment("Cancelling_Orders_Detection")
+        # إعداد اسم التجربة والـ Registered Model Name
+        self.experiment_name = "Cancelling_Orders_Detection"
+        self.registered_model_name = "XGBoost_Churn_Model"
+        
+        mlflow.set_experiment(self.experiment_name)
+        self.client = MlflowClient()
+
+    # =====================================================
+    # Fetch Production Model Performance
+    # =====================================================
+    def get_latest_model_f1_score(self):
+        """
+        جلب الـ F1-Score لأحدث نسخة مسجلة في MLflow Model Registry للمقارنة
+        """
+        try:
+            latest_versions = self.client.get_latest_versions(self.registered_model_name)
+            if not latest_versions:
+                logger.info("No existing model found in Registry. This will be Version 1.")
+                return 0.0
+
+            # جلب أحدث run_id من الـ Model Registry
+            latest_run_id = latest_versions[0].run_id
+            run_data = self.client.get_run(latest_run_id)
+            
+            # استخراج قيمة f1 من الـ Metrics المسجلة
+            previous_f1 = run_data.data.metrics.get("f1", 0.0)
+            logger.info(f"Current Model in Registry (Run ID: {latest_run_id}) F1-Score: {previous_f1:.4f}")
+            return previous_f1
+
+        except Exception as e:
+            logger.warning(f"Could not fetch latest model metrics from MLflow Registry ({e}). Assuming baseline F1 = 0.0")
+            return 0.0
 
     # =====================================================
     # Preprocessing
     # =====================================================
     def prepare_data(self, df):
-            logger.info("Preparing Data")
+        logger.info("Preparing Data")
 
-            X_temp = df.drop(columns=["Cancelled"])
-            y_temp = df["Cancelled"]
+        X_temp = df.drop(columns=["Cancelled"])
+        y_temp = df["Cancelled"]
 
-            X_train_raw, X_test, y_train_raw, y_test = train_test_split(
-                X_temp,
-                y_temp,
-                test_size=0.2,
-                random_state=42,
-                stratify=y_temp
-            )
+        X_train_raw, X_test, y_train_raw, y_test = train_test_split(
+            X_temp,
+            y_temp,
+            test_size=0.2,
+            random_state=42,
+            stratify=y_temp
+        )
 
-            train_df = pd.concat([X_train_raw, y_train_raw], axis=1).reset_index(drop=True)
-            logger.info(f"Train Set Shape before Similarity Filtering: {train_df.shape}")
+        train_df = pd.concat([X_train_raw, y_train_raw], axis=1).reset_index(drop=True)
+        logger.info(f"Train Set Shape before Similarity Filtering: {train_df.shape}")
 
-            categorical_columns = train_df.drop(columns=["Cancelled"]).select_dtypes(
-                include=["object", "category"]
-            ).columns.tolist()
+        categorical_columns = train_df.drop(columns=["Cancelled"]).select_dtypes(
+            include=["object", "category"]
+        ).columns.tolist()
 
-            numerical_columns = train_df.drop(columns=["Cancelled"]).select_dtypes(
-                include=["int64", "float64", "int32", "float32"]
-            ).columns.tolist()
+        numerical_columns = train_df.drop(columns=["Cancelled"]).select_dtypes(
+            include=["int64", "float64", "int32", "float32"]
+        ).columns.tolist()
 
-            # -------------------------------------------------
-            # مرحلة إزالة العينات المتشابهة المحسنة والسريعة
-            # -------------------------------------------------
-            logger.info("Starting Optimized Cosine Similarity Filtering on Majority Class")
-            
-            majority = train_df[train_df["Cancelled"] == 0].reset_index(drop=True)
-            minority = train_df[train_df["Cancelled"] == 1].reset_index(drop=True)
+        # -------------------------------------------------
+        # مرحلة إزالة العينات المتشابهة المحسنة والسريعة
+        # -------------------------------------------------
+        logger.info("Starting Optimized Cosine Similarity Filtering on Majority Class")
+        
+        majority = train_df[train_df["Cancelled"] == 0].reset_index(drop=True)
+        minority = train_df[train_df["Cancelled"] == 1].reset_index(drop=True)
 
-            # فلترة أولية سريعة جداً باستخدام Pandas لإزالة المكرر تماماً أولاً وتقليص الحجم
-            initial_count = len(majority)
-            majority = majority.drop_duplicates().reset_index(drop=True)
-            logger.info(f"Removed {initial_count - len(majority)} exact duplicates using Pandas.")
+        initial_count = len(majority)
+        majority = majority.drop_duplicates().reset_index(drop=True)
+        logger.info(f"Removed {initial_count - len(majority)} exact duplicates using Pandas.")
 
-            # إذا كان الحجم لا يزال ضخماً، نأخذ عينة عشوائية ممثلة لإجراء فحص التشابه عليها لتجنب تعليق الجهاز
-            MAX_SAMPLES_FOR_NN = 40000 
-            
-            if len(majority) > MAX_SAMPLES_FOR_NN:
-                logger.info(f"Majority class is too large ({len(majority)} rows). Subsampling to {MAX_SAMPLES_FOR_NN} for similarity check.")
-                majority_sample = majority.sample(n=MAX_SAMPLES_FOR_NN, random_state=42).reset_index(drop=True)
-                majority_rest = majority.drop(majority_sample.index).reset_index(drop=True)
-            else:
-                majority_sample = majority
-                majority_rest = pd.DataFrame()
+        MAX_SAMPLES_FOR_NN = 40000 
+        
+        if len(majority) > MAX_SAMPLES_FOR_NN:
+            logger.info(f"Majority class is too large ({len(majority)} rows). Subsampling to {MAX_SAMPLES_FOR_NN} for similarity check.")
+            majority_sample = majority.sample(n=MAX_SAMPLES_FOR_NN, random_state=42).reset_index(drop=True)
+            majority_rest = majority.drop(majority_sample.index).reset_index(drop=True)
+        else:
+            majority_sample = majority
+            majority_rest = pd.DataFrame()
 
-            X_majority_sample = majority_sample.drop(columns=["Cancelled"])
+        X_majority_sample = majority_sample.drop(columns=["Cancelled"])
 
-            for col in categorical_columns:
-                X_majority_sample[col] = X_majority_sample[col].astype(str)
+        for col in categorical_columns:
+            X_majority_sample[col] = X_majority_sample[col].astype(str)
 
-            preprocessor_similarity = ColumnTransformer(
-                transformers=[
-                    ("num", StandardScaler(), numerical_columns),
-                    ("cat", OneHotEncoder(handle_unknown="ignore"), categorical_columns)
-                ]
-            )
+        preprocessor_similarity = ColumnTransformer(
+            transformers=[
+                ("num", StandardScaler(), numerical_columns),
+                ("cat", OneHotEncoder(handle_unknown="ignore"), categorical_columns)
+            ]
+        )
 
-            # تحويل العينة فقط
-            X_similarity = preprocessor_similarity.fit_transform(X_majority_sample)
+        X_similarity = preprocessor_similarity.fit_transform(X_majority_sample)
 
-            # استخدام NearestNeighbors
-            nn = NearestNeighbors(
-                n_neighbors=2,
-                metric="cosine",
-                algorithm="auto", 
-                n_jobs=-1
-            )
-            nn.fit(X_similarity)
+        nn = NearestNeighbors(
+            n_neighbors=2,
+            metric="cosine",
+            algorithm="auto", 
+            n_jobs=-1
+        )
+        nn.fit(X_similarity)
 
-            distances, indices = nn.kneighbors(X_similarity)
+        distances, indices = nn.kneighbors(X_similarity)
 
-            rows_to_remove = set()
-            SIMILARITY_THRESHOLD = 0.98
+        rows_to_remove = set()
+        SIMILARITY_THRESHOLD = 0.98
 
-            for i in range(len(indices)):
-                neighbor = indices[i][1]
-                similarity = 1 - distances[i][1]
+        for i in range(len(indices)):
+            neighbor = indices[i][1]
+            similarity = 1 - distances[i][1]
 
-                if similarity >= SIMILARITY_THRESHOLD:
-                    rows_to_remove.add(neighbor)
+            if similarity >= SIMILARITY_THRESHOLD:
+                rows_to_remove.add(neighbor)
 
-            logger.info(f"Majority Duplicates Detected in sample: {len(rows_to_remove)}")
+        logger.info(f"Majority Duplicates Detected in sample: {len(rows_to_remove)}")
 
-            # إسقاط الصفوف المتشابهة من العينة
-            majority_sample = majority_sample.drop(index=list(rows_to_remove)).reset_index(drop=True)
+        majority_sample = majority_sample.drop(index=list(rows_to_remove)).reset_index(drop=True)
+        majority = pd.concat([majority_sample, majority_rest], ignore_index=True)
 
-            # إعادة دمج البيانات المصفاة
-            majority = pd.concat([majority_sample, majority_rest], ignore_index=True)
+        train_df = pd.concat([majority, minority], ignore_index=True)
+        train_df = train_df.sample(frac=1, random_state=42).reset_index(drop=True)
 
-            # دمج الفئتين مرة أخرى وعمل خلط عشوائي (Shuffle)
-            train_df = pd.concat([majority, minority], ignore_index=True)
-            train_df = train_df.sample(frac=1, random_state=42).reset_index(drop=True)
+        X_train = train_df.drop(columns=["Cancelled"])
+        y_train = train_df["Cancelled"]
 
-            X_train = train_df.drop(columns=["Cancelled"])
-            y_train = train_df["Cancelled"]
+        logger.info(f"Train Set Shape after Similarity Filtering: {X_train.shape}")
 
-            logger.info(f"Train Set Shape after Similarity Filtering: {X_train.shape}")
+        # -------------------------------------------------
+        # التجهيز النهائي للـ Preprocessor و SMOTE
+        # -------------------------------------------------
+        preprocessor = ColumnTransformer(
+            transformers=[
+                ("num", StandardScaler(), numerical_columns),
+                ("cat", OneHotEncoder(handle_unknown="ignore"), categorical_columns)
+            ]
+        )
 
-            # -------------------------------------------------
-            # التجهيز النهائي للـ Preprocessor و SMOTE
-            # -------------------------------------------------
-            preprocessor = ColumnTransformer(
-                transformers=[
-                    ("num", StandardScaler(), numerical_columns),
-                    ("cat", OneHotEncoder(handle_unknown="ignore"), categorical_columns)
-                ]
-            )
+        X_train = preprocessor.fit_transform(X_train)
+        X_test = preprocessor.transform(X_test)
 
-            X_train = preprocessor.fit_transform(X_train)
-            X_test = preprocessor.transform(X_test)
+        logger.info(f"Before SMOTE Train Shape: {X_train.shape}")
 
-            logger.info(f"Before SMOTE Train Shape: {X_train.shape}")
+        smote = SMOTE(random_state=42)
+        X_train, y_train = smote.fit_resample(X_train, y_train)
 
-            smote = SMOTE(random_state=42)
-            X_train, y_train = smote.fit_resample(X_train, y_train)
+        logger.info(f"After SMOTE Train Shape: {X_train.shape}")
 
-            logger.info(f"After SMOTE Train Shape: {X_train.shape}")
+        return (
+            X_train,
+            X_test,
+            y_train,
+            y_test,
+            preprocessor
+        )
 
-            return (
-                X_train,
-                X_test,
-                y_train,
-                y_test,
-                preprocessor
-            )
-            
     # =====================================================
     # Train Model
     # =====================================================
@@ -270,17 +293,18 @@ class ModelTrainer:
     def initiate_model_training(self):
         try:
             logger.info("=" * 70)
-            logger.info("Starting Model Training Pipeline with MLflow Tracking")
+            logger.info("Starting Model Training Pipeline with MLflow Tracking & Comparison")
 
-            # كتم وتحييد التحذيرات التلقائية المزعجة لـ MLflow
             mlflow.sklearn.autolog(disable=True)
             mlflow.xgboost.autolog(disable=True)
+
+            # 1. جلب أداء الموديل القديم أولاً للمقارنة
+            previous_f1 = self.get_latest_model_f1_score()
 
             with mlflow.start_run(run_name="xgboost_optimized_run"):
                 df = load_csv(self.data_path)
                 logger.info(f"Raw Dataset Shape : {df.shape}")
                 
-                # تسجيل حجم البيانات في MLflow Tags
                 mlflow.set_tag("dataset_shape", str(df.shape))
 
                 (
@@ -291,37 +315,51 @@ class ModelTrainer:
                     preprocessor
                 ) = self.prepare_data(df)
 
-                # تدريب النموذج
                 model = self.train_model(X_train, y_train)
 
                 threshold, probabilities = self.find_best_threshold(
                     model, X_test, y_test
                 )
 
-                # حساب المقاييس النهائية بناءً على الـ Optimized Threshold
                 metrics = self.evaluate(y_test, probabilities, threshold)
 
-                # تسجيل المقاييس يدوياً دون أي تحذيرات
+                # تسجيل الـ Metrics في MLflow Run الحالية
                 mlflow.log_metrics(metrics)
 
-                # إنشاء المجلدات وحفظ الملفات محلياً
-                self.model_path.parent.mkdir(parents=True, exist_ok=True)
-                self.preprocessor_path.parent.mkdir(parents=True, exist_ok=True)
+                new_f1 = metrics["f1"]
 
-                joblib.dump(model, self.model_path)
-                joblib.dump(preprocessor, self.preprocessor_path)
+                # 2. خطوة المقارنة الشديدة 🎯
+                logger.info(f"📊 Model Comparison -> New Model F1: {new_f1:.4f} | Previous Model F1: {previous_f1:.4f}")
 
-                with open(self.metrics_path, "w") as file:
-                    json.dump(metrics, file, indent=4)
+                if new_f1 >= previous_f1:
+                    logger.info("✅ New model outperformed or matched previous model. Updating artifacts & MLflow Registry!")
 
-                # تسجيل الملفات كـ Artifacts
-                mlflow.log_artifact(str(self.preprocessor_path), artifact_path="preprocessor")
-                mlflow.log_artifact(str(self.metrics_path), artifact_path="metrics")
-                
-                # تسجيل الموديل في Model Registry السحابي بوضوح
-                mlflow.xgboost.log_model(model, artifact_path="model", registered_model_name="XGBoost_Churn_Model")
+                    # حفظ الملفات محلياً
+                    self.model_path.parent.mkdir(parents=True, exist_ok=True)
+                    self.preprocessor_path.parent.mkdir(parents=True, exist_ok=True)
 
-                logger.info(f"Model Saved Locally : {self.model_path}")
+                    joblib.dump(model, self.model_path)
+                    joblib.dump(preprocessor, self.preprocessor_path)
+
+                    with open(self.metrics_path, "w") as file:
+                        json.dump(metrics, file, indent=4)
+
+                    # تسجيل الـ Artifacts
+                    mlflow.log_artifact(str(self.preprocessor_path), artifact_path="preprocessor")
+                    mlflow.log_artifact(str(self.metrics_path), artifact_path="metrics")
+                    
+                    # تسجيل وتحديث الـ Model Registry باسم النموذج
+                    mlflow.xgboost.log_model(
+                        model, 
+                        artifact_path="model", 
+                        registered_model_name=self.registered_model_name
+                    )
+
+                    logger.info(f"Model Saved Locally : {self.model_path}")
+                else:
+                    logger.warning("⚠️ New model did NOT outperform the previous model. Skipping local model save & Registry update.")
+                    mlflow.set_tag("deploy_status", "rejected_due_to_lower_f1")
+
                 logger.info("Model Training and MLflow Logging Completed Successfully")
                 logger.info("=" * 70)
 
