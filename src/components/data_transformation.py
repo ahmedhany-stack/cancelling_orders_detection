@@ -186,12 +186,7 @@ class DataTransformation:
         )
 
 
-        df["Invoice_Total"] = (
 
-            df["Quantity"] *
-            df["Price"]
-
-        )
 
 
         df["Cancelled"] = (

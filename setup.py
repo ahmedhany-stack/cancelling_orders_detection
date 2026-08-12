@@ -4,11 +4,11 @@ setup(
     name="src",
     version="1.0.0",
     author="Ahmed",
-    author_email="ahmed93847@example.com",  # يمكنك تغييره لإيميلك الحقيقي
+    author_email="ahmedhany126543@gmail.com",  # يمكنك تغييره لإيميلك الحقيقي
     description="An end-to-end Machine Learning pipeline for E-Retail Cancellation Prediction",
     long_description=open("README.md", encoding="utf-8").read() if open("README.md") else "",
     long_description_content_type="text/markdown",
-    url="https://github.com/ahmed93847/sales_project",  # رابط مستودع المشروع
+    url="https://github.com/ahmedhany-stack/cancelling_orders_detection",  # رابط مستودع المشروع
     packages=find_packages(),
     classifiers=[
         "Programming Language :: Python :: 3",

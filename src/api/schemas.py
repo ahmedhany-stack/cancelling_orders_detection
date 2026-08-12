@@ -11,6 +11,11 @@ class PredictionRequest(BaseModel):
     customer_id: str
     country: str
 
+         
+
+ 
+
+
 
 class PredictionResponse(BaseModel):
     prediction: int
