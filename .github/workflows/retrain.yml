@@ -23,10 +23,6 @@ jobs:
         with:
           python-version: '3.10'
 
-      # Setup CML بشكل رسمي وسريع من غير مشاكل pip
-      - name: Setup CML
-        uses: iterative/setup-cml@v1
-
       - name: Install Dependencies
         run: |
           python -m pip install --upgrade pip
@@ -46,14 +42,19 @@ jobs:
         run: |
           python src/components/model_trainer.py
 
-      - name: Publish CML Report to GitHub PR/Commit
-        env:
-          REPO_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          echo "## 🤖 Automated Model Retraining Results" > report.md
-          echo "### Latest Evaluated Metrics" >> report.md
-          echo '```json' >> report.md
-          cat artifacts/models/metrics.json >> report.md
-          echo '```' >> report.md
-          
-          cml comment create report.md
+      # نشر تقرير النتائج كـ Commit Comment باستخدام GitHub Script المباشر
+      - name: Post Evaluation Metrics as Commit Comment
+        uses: actions/github-script@v6
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const fs = require('fs');
+            const metrics = fs.readFileSync('artifacts/models/metrics.json', 'utf8');
+            const body = `## 🤖 Automated Model Retraining Results\n### Latest Evaluated Metrics\n\`\`\`json\n${metrics}\n\`\`\``;
+            
+            await github.rest.repos.createCommitComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              commit_sha: context.sha,
+              body: body
+            });
