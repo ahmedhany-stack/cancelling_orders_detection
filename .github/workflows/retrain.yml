@@ -28,21 +28,15 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Pull Latest Data via DVC
-        env:
-          GDRIVE_CREDENTIALS_DATA: ${{ secrets.GDRIVE_CREDENTIALS_DATA }}
-        run: |
-          dvc pull || echo "DVC pull skipped if no remote set"
-
       - name: Execute Model Retraining & Evaluation
         env:
-          MLFLOW_TRACKING_URI: https://dagshub.com/ahmedhany-stack/cancelling_orders_detection.mlflow
-          MLFLOW_TRACKING_USERNAME: ${{ secrets.DAGSHUB_USERNAME }}
-          MLFLOW_TRACKING_PASSWORD: ${{ secrets.DAGSHUB_TOKEN }}
+          PYTHONPATH: .
+          MLFLOW_TRACKING_URI: ${{ secrets.MLFLOW_TRACKING_URI }}
+          MLFLOW_TRACKING_USERNAME: ${{ secrets.MLFLOW_TRACKING_USERNAME }}
+          MLFLOW_TRACKING_PASSWORD: ${{ secrets.MLFLOW_TRACKING_PASSWORD }}
         run: |
           python src/components/model_trainer.py
 
-      # نشر تقرير النتائج كـ Commit Comment باستخدام GitHub Script المباشر
       - name: Post Evaluation Metrics as Commit Comment
         uses: actions/github-script@v6
         with:
