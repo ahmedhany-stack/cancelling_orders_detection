@@ -1,10 +1,14 @@
 name: Automated Model Retraining Pipeline
 
 on:
+  # 1. إمكانية تشغيل الـ Pipeline يدوياً منGitHub Actions
   workflow_dispatch:
+  
+  # 2. تشغيل أوتوماتيك أسبوعياً (كل يوم أحد الساعة 12 منتصف الليل)
   schedule:
     - cron: '0 0 * * 0'
 
+# إعطاء صلاحيات لكتابة التعليقات على الـ Commits والـ Pull Requests
 permissions:
   contents: write
   pull-requests: write
@@ -28,19 +32,31 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
+      # سحب البيانات الكبيرة من DagsHub باستخدام DVC والـ Credentials المسجلة
+      - name: Setup & Pull Data via DVC
+        env:
+          MLFLOW_TRACKING_USERNAME: ${{ secrets.MLFLOW_TRACKING_USERNAME }}
+          MLFLOW_TRACKING_PASSWORD: ${{ secrets.MLFLOW_TRACKING_PASSWORD }}
+        run: |
+          python -m dvc remote add origin https://dagshub.com/ahmedhany-stack/cancelling_orders_detection.dvc -f
+          python -m dvc remote modify origin --local auth basic
+          python -m dvc remote modify origin --local user ${{ secrets.MLFLOW_TRACKING_USERNAME }}
+          python -m dvc remote modify origin --local password ${{ secrets.MLFLOW_TRACKING_PASSWORD }}
+          python -m dvc pull -r origin
+
+      # تنفيذ سكريبت إعادة التدريب والمقارنة
       - name: Execute Model Retraining & Evaluation
         env:
           PYTHONPATH: .
           MLFLOW_TRACKING_URI: ${{ secrets.MLFLOW_TRACKING_URI }}
           MLFLOW_TRACKING_USERNAME: ${{ secrets.MLFLOW_TRACKING_USERNAME }}
           MLFLOW_TRACKING_PASSWORD: ${{ secrets.MLFLOW_TRACKING_PASSWORD }}
-          # إضافة المتغيرات الخاصة بـ DagsHub لضمان عدم حدوث 401
-          DAGSHUB_CLIENT_MAX_ATTEMPTS: "3"
           DAGSHUB_USERNAME: ${{ secrets.MLFLOW_TRACKING_USERNAME }}
           DAGSHUB_TOKEN: ${{ secrets.MLFLOW_TRACKING_PASSWORD }}
         run: |
           python src/components/model_trainer.py
 
+      # نشر تقرير التقييم والـ Metrics كـ Comment على الـ Commit
       - name: Post Evaluation Metrics as Commit Comment
         uses: actions/github-script@v6
         with:
@@ -56,4 +72,3 @@ jobs:
               commit_sha: context.sha,
               body: body
             });
-
