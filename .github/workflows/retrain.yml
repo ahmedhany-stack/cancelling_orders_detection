@@ -34,6 +34,10 @@ jobs:
           MLFLOW_TRACKING_URI: ${{ secrets.MLFLOW_TRACKING_URI }}
           MLFLOW_TRACKING_USERNAME: ${{ secrets.MLFLOW_TRACKING_USERNAME }}
           MLFLOW_TRACKING_PASSWORD: ${{ secrets.MLFLOW_TRACKING_PASSWORD }}
+          # إضافة المتغيرات الخاصة بـ DagsHub لضمان عدم حدوث 401
+          DAGSHUB_CLIENT_MAX_ATTEMPTS: "3"
+          DAGSHUB_USERNAME: ${{ secrets.MLFLOW_TRACKING_USERNAME }}
+          DAGSHUB_TOKEN: ${{ secrets.MLFLOW_TRACKING_PASSWORD }}
         run: |
           python src/components/model_trainer.py
 
@@ -52,3 +56,4 @@ jobs:
               commit_sha: context.sha,
               body: body
             });
+
