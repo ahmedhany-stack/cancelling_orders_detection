@@ -1,104 +1,139 @@
-# 🛒 E-Retail Cancellation Prediction & MLOps Pipeline
+🛒 E-Commerce Order Cancellation Prediction & MLOps Pipeline
 
-An end-to-end Machine Learning Operations (MLOps) pipeline for predicting e-commerce order cancellations. This project automates the entire lifecycle—from data preprocessing and model training to containerization, automated CI/CD deployment, and real-time Slack alerting.
+An end-to-end Machine Learning Operations (MLOps) project designed to predict e-commerce order cancellations. This project automates the full ML lifecycle—including data versioning, modular pipelines, experiment tracking, continuous retraining via CI/CD, drift monitoring, and REST API deployment.
+🏗️ Architecture & Technical Workflow
 
----
+┌─────────────────┐      ┌─────────────────┐      ┌──────────────────┐
+│  Data Source    │ ───► │ Data Ingestion  │ ───► │  Transformation  │
+│  & DVC Tracking │      │ & Validation    │      │  & Feature Eng.  │
+└─────────────────┘      └─────────────────┘      └────────┬─────────┘
+                                                           │
+                                                           ▼
+┌─────────────────┐      ┌─────────────────┐      ┌──────────────────┐
+│ Docker Deployment│ ◄─── │ MLflow Tracking │ ◄─── │  Model Trainer   │
+│ & FastAPI Serving│      │ & DagsHub Reg.  │      │  (XGBoost / ML)  │
+└─────────────────┘      └─────────────────┘      └──────────────────┘
 
-## 🚀 Project Overview
-The goal of this project is to accurately predict whether an online retail order will be cancelled, enabling proactive business interventions. The infrastructure is fully automated using **GitHub Actions**, containerized with **Docker**, tracked via **MLflow & DagsHub**, and monitored through **Slack notifications**.
+🛠️ Tech Stack & Tools
 
----
+    Core Programming: Python 3.10
 
-## 🛠️ Tech Stack & Tools
-* **Language:** Python 3.10+
-* **Machine Learning:** Scikit-Learn, XGBoost, Pandas, NumPy
-* **API Framework:** FastAPI
-* **Experiment Tracking & Registry:** MLflow, DagsHub
-* **Containerization:** Docker, Docker Compose
-* **CI/CD Automation:** GitHub Actions
-* **Monitoring & Alerts:** Slack Webhooks
-* **Testing:** Pytest
+    Data & Machine Learning: Pandas, NumPy, Scikit-Learn, XGBoost, Imbalanced-Learn
 
----
+    Data Version Control (DVC): Remote storage synchronization with DagsHub
 
-## 📂 Repository Structure
-```text
-cancelling_orders_detection/
-│
+    Experiment Tracking & Model Registry: MLflow hosted on DagsHub
+
+    API & Serving: FastAPI, Uvicorn, Pydantic
+
+    Containerization: Docker, Docker Compose
+
+    CI/CD & Automation: GitHub Actions (Automated Retraining, Docker Build & Push)
+
+    Model & Data Monitoring: Evidently AI (Data Drift Detection)
+
+    Testing & Quality: Pytest, Flake8, Black
+
+📁 Project Structure
+Plaintext
+
+sales_Project/
+├── .dvc/                        # DVC configuration directory
 ├── .github/
-│   └── workflows/
-│       └── ci-cd.yaml         # Automated Build, Push & Slack Alert Pipeline
-├── artifacts/
-│   ├── models/                # Trained ML models (.pkl / .joblib)
-│   └── preprocessors/         # Scalers and encoders
-├── src/                       # Source code for training, inference, and pipelines
-├── Dockerfile                 # Container configuration for the prediction API
-├── requirements.txt           # Project dependencies
-├── monitor.py                 # System and pipeline monitoring script
-└── README.md                  # Project documentation
+│   └── workflows/              # CI/CD pipelines (Retraining, Docker build)
+├── artifacts/                   # Local pipeline artifacts (Features, Models)
+├── configs/                     # Configuration YAML files
+├── data/                        # Raw & Processed datasets
+├── logs/                        # Application runtime execution logs
+├── notebooks/                   # Exploratory Data Analysis (EDA) & Research
+├── reports/                     # Data drift and monitoring reports
+├── saved_models/                # Production serialized model binaries
+├── saved_preprocessors/         # Scalers & Encoders transformers
+├── src/                         # Modular Source Code
+│   ├── components/              # Ingestion, Transformation, Trainer pipelines
+│   ├── pipeline/                # Prediction & Training orchestration
+│   ├── utils/                   # Helper functions & I/O handlers
+│   ├── exception.py             # Custom Exception Handler
+│   └── logger.py                # Centralized Logging system
+├── tests/                       # Unit and Integration Pytest suite
+├── app.py                       # FastAPI application entry point
+├── monitor.py                   # Data drift detection script (Evidently)
+├── Dockerfile                   # Docker container configuration
+├── docker-compose.yml           # Container deployment compose file
+├── requirements.txt             # Python dependencies
+└── setup.py                     # Package setup script
 
+🚀 Key MLOps Features Implemented
+1. Data Versioning (DVC + DagsHub)
 
+All datasets (.csv, .xlsx) are tracked outside of Git using DVC. Large feature sets are pushed to a remote DagsHub storage bucket, maintaining lightweight Git repository commits while guaranteeing data reproducibility.
+2. Experiment Tracking & Model Registry (MLflow)
 
-MLOps Pipeline & CI/CD Workflow
+Every training run logs hyperparameter metrics (F1-score, Precision, Recall, ROC-AUC) to MLflow. The top-performing candidate model is automatically evaluated against the current registered production model before registry promotion.
+3. Automated CI/CD Retraining Pipeline
 
-Whenever code is pushed to the main branch, the GitHub Actions CI/CD pipeline automatically executes the following steps:
+A dedicated GitHub Actions workflow (retrain.yml) triggers on a weekly schedule or manual dispatch:
 
-    Checkout Code: Retrieves the latest repository state.
+    Pulls tracked feature sets from DagsHub via DVC.
 
-    Setup Python & Test: Installs dependencies and runs unit tests via Pytest.
+    Trains and evaluates candidate models.
 
-    Docker Buildx: Sets up advanced container building with caching mechanisms.
+    Registers the best model in MLflow.
 
-    Docker Hub Authentication: Securely logs in using encrypted repository secrets.
+    Automatically posts evaluation metrics as a commit comment.
 
-    Build & Push Image: Compiles the application container and pushes the latest image directly to Docker Hub:
+4. Continuous Monitoring & Drift Detection
 
-        Repository: ahmed93847/churn-prediction
+Integrated with Evidently AI (monitor.py) to periodically assess feature distribution changes between baseline training data and incoming production inference batches, generating HTML drift reports.
+⚡ Getting Started (Local Development)
+1. Clone the Repository
+Bash
 
-        Tag: latest
+git clone https://github.com/ahmedhany-stack/cancelling_orders_detection.git
+cd cancelling_orders_detection
 
-    Slack Alerts: Dispatches instant success/failure status notifications directly to the designated team channel.
+2. Environment Setup
+Bash
 
-🔐 Environment Variables & Secrets
+python -m venv .venv
+# On Windows:
+.venv\Scripts\activate
+# On Linux/macOS:
+source .venv/bin/activate
 
-To run this project securely, configure the following secrets in your GitHub Repository (Settings > Secrets and variables > Actions):
+pip install -r requirements.txt
 
-    DOCKER_USERNAME: Your Docker Hub username.
+3. Pull Data via DVC
+Bash
 
-    DOCKER_PASSWORD: Your Docker Hub access token/password.
+python -m dvc remote modify origin --local auth basic
+python -m dvc remote modify origin --local user <DAGSHUB_USERNAME>
+python -m dvc remote modify origin --local password <DAGSHUB_TOKEN>
+python -m dvc pull -r origin
 
-    MLFLOW_TRACKING_URI: DagsHub tracking server URL.
+4. Run Model Training
+Bash
 
-    MLFLOW_TRACKING_USERNAME: DagsHub username.
+python src/components/model_trainer.py
 
-    MLFLOW_TRACKING_PASSWORD: DagsHub access token.
+5. Launch Local FastAPI Web Server
+Bash
 
-    SLACK_WEBHOOK_URL: Slack Incoming Webhook URL for build notifications.
+python app.py
 
-🚀 Getting Started Locally
+    Access Swagger UI Documentation at: http://localhost:8000/docs
 
-    Clone the repository:
-    Bash
+🐳 Docker Deployment
 
-    git clone [https://github.com/ahmedhany-stack/cancelling_orders_detection.git](https://github.com/ahmedhany-stack/cancelling_orders_detection.git)
-    cd cancelling_orders_detection
+To build and run the application using Docker:
+Bash
 
-    Create and activate a virtual environment:
-    Bash
+# Build & Run with Docker Compose
+docker-compose up --build -d
 
-    python -m venv .venv
-    source .venv/bin/activate  # On Windows use: .venv\Scripts\Activate
+# Check application status
+docker-compose ps
 
-    Install dependencies:
-    Bash
+📄 License
 
-    pip install -r requirements.txt
-
-    Set up your local .env file:
-    Create a .env file in the root directory and add your keys:
-    مقتطف الرمز
-
-    SLACK_WEBHOOK_URL=your_slack_webhook_here
-    MLFLOW_TRACKING_URI=your_mlflow_uri_here
-
-
+This project is licensed under the MIT License - see the LICENSE file for details.
