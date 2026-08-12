@@ -1,0 +1,28 @@
+{
+    "rows": 525461,
+    "columns": 8,
+    "missing_values": {
+        "Invoice": 0,
+        "StockCode": 0,
+        "Description": 2928,
+        "Quantity": 0,
+        "InvoiceDate": 0,
+        "Price": 0,
+        "Customer ID": 107927,
+        "Country": 0
+    },
+    "duplicate_rows": 6865,
+    "negative_quantity_count": 12326,
+    "invalid_price_count": 3690,
+    "invalid_invoice_count": 0,
+    "unique_values": {
+        "country": 40,
+        "description": 4681,
+        "customers": 4383
+    },
+    "outliers": {
+        "Quantity": 57870,
+        "Price": 35273
+    },
+    "status": "PASSED"
+}
