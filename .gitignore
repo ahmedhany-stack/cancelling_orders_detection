@@ -36,23 +36,25 @@ build/
 dist/
 
 # ==========================================
-# Data & Artifacts Management
+# Data & Data Artifacts (Ignored by Git, Tracked by DVC)
 # ==========================================
-# تجاهل مجلدات وملفات البيانات الضخمة نهائياً لمنع مشاكل الـ Push
 data/
-artifacts/features/
 *.csv
 *.xlsx
-*.json
 
-# السماح برفع مجلدات النماذج والـ preprocessors الجاهزة فقط
+# تجاهل ملفات البيانات الكبيرة داخل artifacts مع السماح بـ .dvc
+artifacts/features/*.csv
+artifacts/raw_data.csv
+artifacts/clean_data.csv
+
+# الاستثناءات المطلوبة (رفع الموديلات والـ dvc والـ metrics)
+!*.dvc
+!.gitignore
 !artifacts/
 !artifacts/models/
 !artifacts/preprocessors/
+!artifacts/models/metrics.json
 !saved_models/
 !saved_preprocessors/
 !*.pkl
 !*.joblib
-
-
-!artifacts/**/*.dvc
