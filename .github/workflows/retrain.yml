@@ -5,7 +5,6 @@ on:
   schedule:
     - cron: '0 0 * * 0'
 
-# إعطاء صلاحيات للـ CML لكتابة التعليقات على الـ Commits
 permissions:
   contents: write
   pull-requests: write
@@ -24,11 +23,14 @@ jobs:
         with:
           python-version: '3.10'
 
+      # Setup CML بشكل رسمي وسريع من غير مشاكل pip
+      - name: Setup CML
+        uses: iterative/setup-cml@v1
+
       - name: Install Dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-          pip install cml
 
       - name: Pull Latest Data via DVC
         env:
@@ -42,7 +44,6 @@ jobs:
           MLFLOW_TRACKING_USERNAME: ${{ secrets.DAGSHUB_USERNAME }}
           MLFLOW_TRACKING_PASSWORD: ${{ secrets.DAGSHUB_TOKEN }}
         run: |
-          # تشغيل سكريبت إعادة التدريب والمقارنة بالكامل
           python src/components/model_trainer.py
 
       - name: Publish CML Report to GitHub PR/Commit
@@ -55,5 +56,4 @@ jobs:
           cat artifacts/models/metrics.json >> report.md
           echo '```' >> report.md
           
-          # نشر التقرير كتعليق على الـ Commit
           cml comment create report.md
