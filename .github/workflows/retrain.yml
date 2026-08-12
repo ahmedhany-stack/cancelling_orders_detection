@@ -1,7 +1,7 @@
 name: Automated Model Retraining Pipeline
 
 on:
-  # 1. إمكانية تشغيل الـ Pipeline يدوياً منGitHub Actions
+  # 1. إمكانية تشغيل الـ Pipeline يدوياً من GitHub Actions
   workflow_dispatch:
   
   # 2. تشغيل أوتوماتيك أسبوعياً (كل يوم أحد الساعة 12 منتصف الليل)
@@ -32,19 +32,26 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      # سحب البيانات الكبيرة من DagsHub باستخدام DVC والـ Credentials المسجلة
+      # 1. إنشاء هياكل المجلدات المطلوبة لتجنب أخطاء المسارات
+      - name: Create Artifacts Directory Structure
+        run: |
+          mkdir -p artifacts/features
+          mkdir -p artifacts/models
+
+      # 2. تثبيت DVC وسحب البيانات الكبيرة من DagsHub
       - name: Setup & Pull Data via DVC
         env:
           MLFLOW_TRACKING_USERNAME: ${{ secrets.MLFLOW_TRACKING_USERNAME }}
           MLFLOW_TRACKING_PASSWORD: ${{ secrets.MLFLOW_TRACKING_PASSWORD }}
         run: |
+          pip install dvc dvc-http
           python -m dvc remote add origin https://dagshub.com/ahmedhany-stack/cancelling_orders_detection.dvc -f
           python -m dvc remote modify origin --local auth basic
           python -m dvc remote modify origin --local user ${{ secrets.MLFLOW_TRACKING_USERNAME }}
           python -m dvc remote modify origin --local password ${{ secrets.MLFLOW_TRACKING_PASSWORD }}
-          python -m dvc pull -r origin
+          python -m dvc pull -r origin || true
 
-      # تنفيذ سكريبت إعادة التدريب والمقارنة
+      # 3. تنفيذ سكريبت إعادة التدريب والمقارنة (مع تشغيل سكريبت تجهيز البيانات أوتوماتيكياً لو الملف مش موجود)
       - name: Execute Model Retraining & Evaluation
         env:
           PYTHONPATH: .
@@ -54,9 +61,15 @@ jobs:
           DAGSHUB_USERNAME: ${{ secrets.MLFLOW_TRACKING_USERNAME }}
           DAGSHUB_TOKEN: ${{ secrets.MLFLOW_TRACKING_PASSWORD }}
         run: |
+          if [ ! -f "artifacts/features/engineered_data.csv" ]; then
+              echo "⚠️ Engineered data not found after DVC pull! Generating data pipeline..."
+              python src/components/data_ingestion.py || true
+              python src/components/data_transformation.py || true
+          fi
+
           python src/components/model_trainer.py
 
-      # نشر تقرير التقييم والـ Metrics كـ Comment على الـ Commit
+      # 4. نشر تقرير التقييم والـ Metrics كـ Comment على الـ Commit
       - name: Post Evaluation Metrics as Commit Comment
         uses: actions/github-script@v6
         with:
