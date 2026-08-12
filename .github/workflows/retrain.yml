@@ -38,7 +38,7 @@ jobs:
           mkdir -p artifacts/features
           mkdir -p artifacts/models
 
-      # 2. تثبيت DVC وسحب البيانات الكبيرة من DagsHub
+      ## 2. تثبيت DVC وسحب البيانات الكبيرة من DagsHub
       - name: Setup & Pull Data via DVC
         env:
           MLFLOW_TRACKING_USERNAME: ${{ secrets.MLFLOW_TRACKING_USERNAME }}
@@ -49,9 +49,11 @@ jobs:
           python -m dvc remote modify origin --local auth basic
           python -m dvc remote modify origin --local user ${{ secrets.MLFLOW_TRACKING_USERNAME }}
           python -m dvc remote modify origin --local password ${{ secrets.MLFLOW_TRACKING_PASSWORD }}
-          python -m dvc pull -r origin || true
+          
+          # سحب الملف المحدث
+          python -m dvc pull -r origin
 
-      # 3. تنفيذ سكريبت إعادة التدريب والمقارنة (مع تشغيل سكريبت تجهيز البيانات أوتوماتيكياً لو الملف مش موجود)
+      # 3. تنفيذ سكريبت إعادة التدريب والمقارنة مباشرة
       - name: Execute Model Retraining & Evaluation
         env:
           PYTHONPATH: .
@@ -61,12 +63,6 @@ jobs:
           DAGSHUB_USERNAME: ${{ secrets.MLFLOW_TRACKING_USERNAME }}
           DAGSHUB_TOKEN: ${{ secrets.MLFLOW_TRACKING_PASSWORD }}
         run: |
-          if [ ! -f "artifacts/features/engineered_data.csv" ]; then
-              echo "⚠️ Engineered data not found after DVC pull! Generating data pipeline..."
-              python src/components/data_ingestion.py || true
-              python src/components/data_transformation.py || true
-          fi
-
           python src/components/model_trainer.py
 
       # 4. نشر تقرير التقييم والـ Metrics كـ Comment على الـ Commit
